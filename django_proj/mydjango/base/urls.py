@@ -15,11 +15,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-from znaki import views
-
+from znaki import views as z_views
+from geomtry import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('vodoley/', views.vodoley),
-    path('ribi/', views.ribi)
+    path('<int:sign_horoscope>/', z_views.get_info_sign_horoscope_by_number),
+    path('<sign_horoscope>/', z_views.get_info_sign_horoscope),
+    path('calculate_geometry/', include('geomtry.urls'))
+
 ]
