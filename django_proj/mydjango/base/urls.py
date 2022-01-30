@@ -16,7 +16,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from znaki import views as z_views
-from geomtry import views
+from geomtry import views as g_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
