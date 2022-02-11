@@ -5,8 +5,6 @@ from random import shuffle, randint
 lists of first and second army parsed from xlsx file, same units does not divide by quantity
 ***_pars_list[7] its amount of units with the same parameters. In fact - stack of units
 """
-first_pars_list = []
-second_pars_list = []
 
 """
 В этих списках отсутвует параметр количества и стаки юнитов разбиты на отдельных юнитов
@@ -21,10 +19,6 @@ element in this lists its list of unit parameters:
 ***_army_combat_list[*][6] its moral parameter which doubled or halved combat points in second battle stage
 ***_army_combat_list[*][7] its string of russian signs which show what type of troops will receive damage
 """
-first_army_combat_list = []  # parsed lists where all same units divided by quantity
-second_army_combat_list = []
-first_army_magic_and_abilities_list = []
-second_army_magic_and_abilities_list = []
 
 morale_modifier = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
 base_casualties = 30  # base level of casualties(in fact - percents) used in second battle stage
@@ -33,44 +27,38 @@ winner = None
 second_stage_advantage = 0
 
 
-def first_stage_battle() -> None:
+def first_stage_battle(attacker_list, defender_list):
     """
     this function counts first stage battle and modified army lists to use it in second battle stage
     :return: None
     """
+    count = 0
+    for attacker_army_unit in attacker_list:  # iterate by unit in first army list
+        for defender_army_unit in defender_list:  # iterate by unit in second army list
 
-    """
-    this cycle applies magic in the first stage of the battle
-    the first "if" operator selects the type of magic to be used
-    """
-    for spell_and_ability in first_army_magic_and_abilities_list:
-        if spell_and_ability[0] == "а":
-            for second_army_unit in second_army_combat_list:
-                second_army_unit[2] -= spell_and_ability[1]
-                spell_and_ability[2] -= 1
-                if spell_and_ability[2] == 0:
-                    break
+            # if unit in second army have type which damaged by first army unit and second army have
+            # at least 1 combat point(HP)
+            if defender_army_unit["unit_type"] in attacker_army_unit["targets"] and defender_army_unit["current_combat"] > 0:
 
-    for first_army_unit in first_army_combat_list:  # iterate by unit in first army list
-        for second_army_unit in second_army_combat_list:  # iterate by unit in second army list
-            if second_army_unit[1] in first_army_unit[7] and second_army_unit[3] > 0:  # if unit in second army have
-                # type which damaged by first army unit and second army have at least 1 combat point(HP)
-                dmg1 = second_army_unit[2] // 100 * (first_army_unit[4] - second_army_unit[5])  # this formula counts
-                # damage
-                if dmg1 > 0:  # if protection bigger then the damage then no damage is dealt
-                    second_army_unit[3] -= dmg1  # dealt damage
-                shuffle(second_army_combat_list)  # random function which shuffle army list in each iteration
+                # this formula counts damage
+                dmg1 = defender_army_unit["max_combat"] // 100 * (attacker_army_unit["damage"] - defender_army_unit["defence"])
+
+                if dmg1 > 0:  # if protection bigger then the damage then no damage is dealt(it needs to prevent
+                    # negative damage)
+                    defender_army_unit["current_combat"] -= dmg1  # dealt damage to unit
+                    count += 1
+
+
+                shuffle(defender_list)  # random function which shuffle army list in each iteration
                 #  This is necessary to introduce an element of chance
-                break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
 
-    for second_army_unit in second_army_combat_list:
-        for first_army_unit in first_army_combat_list:
-            if first_army_unit[1] in second_army_unit[7] and first_army_unit[3] > 0:
-                dmg2 = first_army_unit[2] // 100 * (second_army_unit[4] - first_army_unit[5])
-                if dmg2 > 0:
-                    first_army_unit[3] -= dmg2
-                shuffle(first_army_combat_list)
-                break
+                break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
+    print(count)
+    defender_after_casualties = list.copy(defender_list)
+    for i in defender_after_casualties:
+        print(i["current_combat"])
+
+    return defender_after_casualties
 
 
 def combat_points_counter() -> (int, int):
@@ -83,22 +71,25 @@ def combat_points_counter() -> (int, int):
     second_army_sum_combat = 0
 
     for unit in first_army_combat_list:  # iterate by unit in army list
-        if unit[3] > 0:  # if unit is not dead(combat point <= 0)
-            if 0 < unit[6] >= randint(0, 100):  # positive morale check(morale>0).check succeeds if morale >= randint
-                first_army_sum_combat += unit[3] * morale_modifier  # add combat point * morale to sum
-            elif 0 > unit[6] >= randint(0, -100):  # negative morale check(morale<0).check succeeds if morale >= randint
-                first_army_sum_combat += unit[3] // morale_modifier  # add combat point // morale to sum
+        if unit["current_combat"] > 0:  # if unit is not dead(combat point <= 0)
+            if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
+                # check succeeds if morale >= randint
+                first_army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
+            elif 0 > unit["morale"] >= randint(0, -100):  # negative morale check(morale<0).
+                # check succeeds if morale >= randint
+                first_army_sum_combat += unit["current_combat"] // morale_modifier  # add combat point // morale to sum
             else:
-                first_army_sum_combat += unit[3]  # add combat points to sum if morale == 0
+                first_army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
 
     for unit in second_army_combat_list:
-        if unit[3] > 0:
-            if 0 < unit[5] > randint(0, 100):
-                second_army_sum_combat += unit[2] * morale_modifier
-            elif 0 > unit[6] >= randint(0, -100):
-                second_army_sum_combat += unit[3] // morale_modifier
+        if unit["current_combat"] > 0:
+            if 0 < unit["morale"] > randint(0, 100):
+                second_army_sum_combat += unit["current_combat"] * morale_modifier
+            elif 0 > unit["morale"] >= randint(0, -100):
+                second_army_sum_combat += unit["current_combat"] // morale_modifier
             else:
-                second_army_sum_combat += unit[3]
+                second_army_sum_combat += unit["current_combat"]
+
     global winner
     if first_army_sum_combat > second_army_sum_combat:
         winner = "победа первой армии"
@@ -148,17 +139,17 @@ def second_stage_battle():
         second_army_casualties = 0
 
     for unit in first_army_combat_list:
-        unit[3] = int(unit[3] // 100 * (100 - first_army_casualties))
+        unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
     for unit in second_army_combat_list:
-        unit[3] = int(unit[3] // 100 * (100 - second_army_casualties))
-
+        print(unit)
+        unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
     return remove_dead_units(first_army_combat_list), remove_dead_units(second_army_combat_list)
 
 
 def remove_dead_units(unitlist: list) -> list:
     new_list = []
     for unit in unitlist:
-        if unit[3] > 0:
+        if unit["current_combat"] > 0:
             new_list.append(unit)
     return new_list
 
@@ -168,84 +159,89 @@ def military_intelligence():
 
 
 def magic_and_abilities():
+    """
+    this cycle applies magic in the first stage of the battle
+    the first "if" operator selects the type of magic to be used
+    """
     for spell_and_ability in first_army_magic_and_abilities_list:
-        if spell_and_ability[0] == "а":
-            return
+        if spell_and_ability['name_of_magic_or_abilities'] == "а":
+            for second_army_unit in second_army_combat_list:
+                second_army_unit["current_combat"] -= spell_and_ability['skill_damage']
+                spell_and_ability['number_of_targets'] -= 1
+                if spell_and_ability['number_of_targets'] == 0:
+                    break
 
 
-def parser():
-    xls_workbook = op.load_workbook("table.xlsx", read_only=True)
-    xls_worksheet = xls_workbook.active
+def parser(worksheet, keys_dict, minrow, maxrow, mincol, maxcol):
+    pars_list = []
 
-    keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
-                          "damage", "defence", "morale", "targets", "amount")
+    for row in worksheet.iter_rows(min_row=minrow, max_row=maxrow, min_col=mincol, max_col=maxcol,
+                                   values_only=True):
+        if not row[0]:
+            break
+        army_or_ability_dict = dict(zip(keys_dict, row))
+        pars_list.append(army_or_ability_dict)
 
-    keys_for_magic_dict = ('name_of_magic_or_abilities', 'type_of_magic_or_abilities',
-                           'damage', 'number_of_targets', 'effectiveness')
+    return pars_list
 
-    def army_parser():
-        for row in xls_worksheet.iter_rows(min_row=4, max_row=35, min_col=2, max_col=10, values_only=True):
-            if not row[0]:
-                break
-            unit_dict = dict(zip(keys_for_army_dict, row))
-            first_pars_list.append(unit_dict)
 
-        for row in xls_worksheet.iter_rows(min_row=4, max_row=35, min_col=13, max_col=21, values_only=True):
-            if not row[0]:
-                break
-            unit_dict = dict(zip(keys_for_army_dict, row))
-            second_pars_list.append(unit_dict)
+def army_list_creator(parslist):
+    army_list = []
 
-        for i in first_pars_list:
-            while i["amount"] >= 1:
-                first_army_combat_list.append(i)
-                i["amount"] -= 1
-
-        for i in second_pars_list:
-            while i["amount"] >= 1:
-                second_army_combat_list.append(i)
-                i["amount"] -= 1
-
-    def magic_parser():
-        for row in xls_worksheet.iter_rows(min_row=41, max_row=55, min_col=3, max_col=6, values_only=True):
-            if not row[0]:
-                break
-            magic_and_abilities_dict = dict(zip(keys_for_magic_dict, row))
-            first_army_magic_and_abilities_list.append(magic_and_abilities_dict)
-
-        for row in xls_worksheet.iter_rows(min_row=41, max_row=55, min_col=14, max_col=17, values_only=True):
-            if not row[0]:
-                break
-            magic_and_abilities_dict = dict(zip(keys_for_magic_dict, row))
-            second_army_magic_and_abilities_list.append(magic_and_abilities_dict)
-
-    army_parser()
-    magic_parser()
+    for i in parslist:
+        while i["amount"] >= 1:
+            army_list.append(i)
+            i["amount"] -= 1
+    return army_list
 
 
 def file_writer(first_list, second_list):
     with open("result.txt", 'w', encoding="utf-8") as res:
         res.write(f'Бой проведен. Его результатом стала {winner}')
         res.write(f'\nПреемущество победителя во второй фазе боя - {abs(second_stage_advantage)}%\n')
+
         if first_list:
             res.write("\nПервая армия выжившие:\n")
             for line in first_list:
-                res.write(str(line[0]) + '\n')
+                res.write(str(line["unit_name"] + str(line['current_combat']) + '\n'))
         else:
             res.write("Первая армия полностью уничтожена")
 
         if second_list:
             res.write("\nВторая армия выжившие:\n")
             for line in second_list:
-                print(line)
-                res.write(str(line[0]) + ' ' + str(line[3]) + '\n')
+                res.write(str(line["unit_name"]) + ' ' + str(line['current_combat']) + '\n')
         else:
             res.write("\nВторая армия полностью уничтожена")
 
 
 def main_logic():
-    parser()
-    first_stage_battle()
+    xls_workbook = op.load_workbook("table.xlsx", read_only=True)
+    xls_worksheet = xls_workbook.active
+
+    keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
+                          "damage", "defence", "morale", "targets", "amount")
+    keys_for_magic_dict = ('name_of_magic_or_abilities', 'type_of_magic_or_abilities',
+                           'skill_damage', 'number_of_targets', 'effectiveness')
+
+    first_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=2, maxcol=10)
+    second_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=13, maxcol=21)
+
+    first_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=2, maxcol=6)
+    second_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=13, maxcol=17)
+
+    first_army_combat_list = army_list_creator(first_army_pars_list)
+    second_army_combat_list = army_list_creator(second_army_pars_list)
+    print(second_army_combat_list)
+
+    first_army_first_stage = first_stage_battle(attacker_list=second_army_combat_list,
+                                                defender_list=first_army_combat_list)
+    print("")
+    second_army_first_stage = first_stage_battle(attacker_list=first_army_combat_list,
+                                                 defender_list=second_army_combat_list)
+
+
+
     first_army_afterfight, second_army_afterfight = second_stage_battle()
     file_writer(first_army_afterfight, second_army_afterfight)
 
