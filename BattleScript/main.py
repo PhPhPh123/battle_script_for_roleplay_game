@@ -6,19 +6,6 @@ lists of first and second army parsed from xlsx file, same units does not divide
 ***_pars_list[7] its amount of units with the same parameters. In fact - stack of units
 """
 
-"""
-В этих списках отсутвует параметр количества и стаки юнитов разбиты на отдельных юнитов
-In this lists missing amount parameter and stacks of units divide by individual unit
-element in this lists its list of unit parameters:
-***_army_combat_list[*][0] its name of unit
-***_army_combat_list[*][1] its type of unit displayed by one string sign in russian language
-***_army_combat_list[*][2] its maximum combat points of unit
-***_army_combat_list[*][3] its current combat points of unit
-***_army_combat_list[*][4] its damage of unit in first stage
-***_army_combat_list[*][5] its unit damage protection
-***_army_combat_list[*][6] its moral parameter which doubled or halved combat points in second battle stage
-***_army_combat_list[*][7] its string of russian signs which show what type of troops will receive damage
-"""
 
 morale_modifier = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
 base_casualties = 30  # base level of casualties(in fact - percents) used in second battle stage
@@ -32,7 +19,7 @@ def first_stage_battle(attacker_list, defender_list):
     this function counts first stage battle and modified army lists to use it in second battle stage
     :return: None
     """
-    count = 0
+
     for attacker_army_unit in attacker_list:  # iterate by unit in first army list
         for defender_army_unit in defender_list:  # iterate by unit in second army list
 
@@ -46,58 +33,37 @@ def first_stage_battle(attacker_list, defender_list):
                 if dmg1 > 0:  # if protection bigger then the damage then no damage is dealt(it needs to prevent
                     # negative damage)
                     defender_army_unit["current_combat"] -= dmg1  # dealt damage to unit
-                    count += 1
-
 
                 shuffle(defender_list)  # random function which shuffle army list in each iteration
                 #  This is necessary to introduce an element of chance
 
                 break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
-    print(count)
+
     defender_after_casualties = list.copy(defender_list)
-    for i in defender_after_casualties:
-        print(i["current_combat"])
 
     return defender_after_casualties
 
 
-def combat_points_counter() -> (int, int):
+def combat_points_counter(army):
     """
     this function counts sum of combat points to use it in second battle stage
     also this function use moral modifier to double (or halve) combat points if unit is lucky
     :return: sum of first and second army combat points
     """
-    first_army_sum_combat = 0  # final combat points of first and second army
-    second_army_sum_combat = 0
+    army_sum_combat = 0  # final combat points of army
 
-    for unit in first_army_combat_list:  # iterate by unit in army list
+    for unit in army:  # iterate by unit in army list
         if unit["current_combat"] > 0:  # if unit is not dead(combat point <= 0)
             if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
                 # check succeeds if morale >= randint
-                first_army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
+                army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
             elif 0 > unit["morale"] >= randint(0, -100):  # negative morale check(morale<0).
                 # check succeeds if morale >= randint
-                first_army_sum_combat += unit["current_combat"] // morale_modifier  # add combat point // morale to sum
+                army_sum_combat += int(unit["current_combat"] / morale_modifier)  # add combat point // morale to sum
             else:
-                first_army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
+                army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
 
-    for unit in second_army_combat_list:
-        if unit["current_combat"] > 0:
-            if 0 < unit["morale"] > randint(0, 100):
-                second_army_sum_combat += unit["current_combat"] * morale_modifier
-            elif 0 > unit["morale"] >= randint(0, -100):
-                second_army_sum_combat += unit["current_combat"] // morale_modifier
-            else:
-                second_army_sum_combat += unit["current_combat"]
-
-    global winner
-    if first_army_sum_combat > second_army_sum_combat:
-        winner = "победа первой армии"
-    elif first_army_sum_combat < second_army_sum_combat:
-        winner = "победа второй армии"
-    else:
-        winner = "Ничья"
-    return first_army_sum_combat, second_army_sum_combat
+    return army_sum_combat
 
 
 def army_advantage(first_cb: int, second_cb: int) -> int:
@@ -113,11 +79,13 @@ def army_advantage(first_cb: int, second_cb: int) -> int:
     return advantage
 
 
-def second_stage_battle():
-    first_army_final_cb, second_army_final_cb = combat_points_counter()
-    if first_army_final_cb == 0 or second_army_final_cb == 0:
-        return remove_dead_units(first_army_combat_list), remove_dead_units(second_army_combat_list)
-    advantage = army_advantage(first_army_final_cb, second_army_final_cb)
+def second_stage_battle(first_army, second_army):
+    first_army_final_cp = combat_points_counter(first_army)
+    second_army_final_cp = combat_points_counter(second_army)
+
+    if first_army_final_cp == 0 or second_army_final_cp == 0:
+        return remove_dead_units(first_army), remove_dead_units(second_army)
+    advantage = army_advantage(first_army_final_cp, second_army_final_cp)
 
     if advantage > 0:
         first_army_casualties = base_casualties - advantage // 2
@@ -138,12 +106,19 @@ def second_stage_battle():
     if second_army_casualties <= 0:
         second_army_casualties = 0
 
-    for unit in first_army_combat_list:
+    global winner
+    if first_army_final_cp > second_army_final_cp:
+        winner = "победа первой армии"
+    elif first_army_final_cp < second_army_final_cp:
+        winner = "победа второй армии"
+    else:
+        winner = "Ничья"
+
+    for unit in first_army:
         unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
-    for unit in second_army_combat_list:
-        print(unit)
+    for unit in second_army:
         unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
-    return remove_dead_units(first_army_combat_list), remove_dead_units(second_army_combat_list)
+    return remove_dead_units(first_army), remove_dead_units(second_army)
 
 
 def remove_dead_units(unitlist: list) -> list:
@@ -185,14 +160,26 @@ def parser(worksheet, keys_dict, minrow, maxrow, mincol, maxcol):
     return pars_list
 
 
+def army_unit_numeration(arm_list):
+    sorted_arm_list = sorted(arm_list, key=lambda islist: islist["unit_name"])
+
+    for num, unit in enumerate(sorted_arm_list, start=1):
+        unit["unit_name"] += f" ,юнит №{num}"
+    numerated_arm_list = sorted_arm_list.copy()
+
+    return numerated_arm_list
+
+
 def army_list_creator(parslist):
     army_list = []
 
     for i in parslist:
         while i["amount"] >= 1:
-            army_list.append(i)
+            army_list.append(dict(list(i.items())[:-1]))
             i["amount"] -= 1
-    return army_list
+    numerated_army_list = army_unit_numeration(army_list)
+
+    return numerated_army_list
 
 
 def file_writer(first_list, second_list):
@@ -203,7 +190,7 @@ def file_writer(first_list, second_list):
         if first_list:
             res.write("\nПервая армия выжившие:\n")
             for line in first_list:
-                res.write(str(line["unit_name"] + str(line['current_combat']) + '\n'))
+                res.write(str(line["unit_name"] + ' ' + str(line['current_combat']) + '\n'))
         else:
             res.write("Первая армия полностью уничтожена")
 
@@ -232,19 +219,19 @@ def main_logic():
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
-    print(second_army_combat_list)
-
+    print("")
+    print(first_army_combat_list)
+    print("")
     first_army_first_stage = first_stage_battle(attacker_list=second_army_combat_list,
                                                 defender_list=first_army_combat_list)
-    print("")
     second_army_first_stage = first_stage_battle(attacker_list=first_army_combat_list,
                                                  defender_list=second_army_combat_list)
+    print(first_army_first_stage)
+    print("")
+    first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage, second_army_first_stage)
 
-
-
-    first_army_afterfight, second_army_afterfight = second_stage_battle()
-    file_writer(first_army_afterfight, second_army_afterfight)
-
+    file_writer(first_army_second_stage, second_army_second_stage)
+    print(first_army_second_stage)
 
 if __name__ == "__main__":
     main_logic()
