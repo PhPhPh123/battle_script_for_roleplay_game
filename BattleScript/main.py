@@ -39,7 +39,7 @@ def first_stage_battle(attacker_list, defender_list):
 
                 break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
 
-    defender_after_casualties = list.copy(defender_list)
+    defender_after_casualties = remove_dead_units(list.copy(defender_list))
 
     return defender_after_casualties
 
@@ -85,6 +85,7 @@ def second_stage_battle(first_army, second_army):
 
     if first_army_final_cp == 0 or second_army_final_cp == 0:
         return remove_dead_units(first_army), remove_dead_units(second_army)
+
     advantage = army_advantage(first_army_final_cp, second_army_final_cp)
 
     if advantage > 0:
@@ -115,10 +116,14 @@ def second_stage_battle(first_army, second_army):
         winner = "Ничья"
 
     for unit in first_army:
-        unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
+        unit["current_combat"] = int(unit["current_combat"] / 100 * (100 - first_army_casualties))
     for unit in second_army:
-        unit["current_combat"] = int(100 / unit["current_combat"] * (100 - first_army_casualties))
-    return remove_dead_units(first_army), remove_dead_units(second_army)
+        unit["current_combat"] = int(unit["current_combat"] / 100 * (100 - second_army_casualties))
+
+    first_army_afterfight = remove_dead_units(first_army)
+    second_army_afterfight = remove_dead_units(second_army)
+
+    return first_army_afterfight, second_army_afterfight
 
 
 def remove_dead_units(unitlist: list) -> list:
@@ -219,19 +224,16 @@ def main_logic():
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
-    print("")
-    print(first_army_combat_list)
-    print("")
+
     first_army_first_stage = first_stage_battle(attacker_list=second_army_combat_list,
                                                 defender_list=first_army_combat_list)
     second_army_first_stage = first_stage_battle(attacker_list=first_army_combat_list,
                                                  defender_list=second_army_combat_list)
-    print(first_army_first_stage)
-    print("")
+
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage, second_army_first_stage)
 
     file_writer(first_army_second_stage, second_army_second_stage)
-    print(first_army_second_stage)
+
 
 if __name__ == "__main__":
     main_logic()
