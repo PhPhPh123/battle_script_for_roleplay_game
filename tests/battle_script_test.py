@@ -3,6 +3,7 @@ import BattleScript.main as script
 import openpyxl as op
 import random
 import pathlib
+from pprint import pprint
 
 path = pathlib.Path(pathlib.Path.home(), "PycharmProjects", "battle_script_for_roleplay_game", 'BattleScript',
                     "table.xlsx")
@@ -10,7 +11,7 @@ xls_workbook = op.load_workbook(path, read_only=True)
 xls_worksheet = xls_workbook.active
 
 
-def unit_creator(stage):
+def unit_creator(pos_or_negative, stage):
     keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
                           "damage", "defence", "morale", "targets", "amount")
     type_unit_list = ['в', "л", "к", "м", "ф", "ч", "п", "о"]
@@ -18,7 +19,7 @@ def unit_creator(stage):
     unit_name = str("n" * random.randint(2, 6))
     unit_type = random.choice(type_unit_list)
     max_combat = random.randint(50, 500)
-    current_combat = random.randint(1, max_combat)
+    current_combat = random.randint(1, max_combat) * pos_or_negative
     unit_damage = random.randint(0, 20)
     unit_defence = random.randint(0, 20)
     unit_morale = random.randint(0, 20)
@@ -49,15 +50,19 @@ def army_creator(number_of_units, stage):
     else:
         positive_or_negative_combat = random.choice((-1, 1))
     for _ in range(number_of_units):
-        army_list.append(unit_creator(positive_or_negative_combat))
+        army_list.append(unit_creator(positive_or_negative_combat, stage))
     return army_list
 
 
 class ParserTest(TestCase):
+    def test_type(self):
+        bbb = army_creator(10, "parsing")
+        ttt = script.army_list_creator(bbb)
+
 
     def test_number_of_units_after_parsing(self):
         self.assertNotEqual(script.army_list_creator(army_creator(random.randint(1, 10), "parsing")),
-                                                    army_creator(random.randint(1, 10), "first-stage"))
+                            army_creator(random.randint(1, 10), "first-stage"))
 
     def test_army_without_unit_renaming(self):
         list_for_testing = [{"unit_name": "название_юнита", "unit_type": "в", "max_combat": 100, "current_combat": 75,
