@@ -1,5 +1,6 @@
 import openpyxl as op
 from random import shuffle, randint
+import pprint
 
 """
 lists of first and second army parsed from xlsx file, same units does not divide by quantity
@@ -14,6 +15,65 @@ winner = None
 second_stage_advantage = 0
 
 
+def magic_and_ability_stage(attacker_list, defender_list, attacker_abil_list):
+    for attacker_ability in attacker_abil_list:
+        effect = 1
+
+        if attacker_ability['effectiveness'] == "ч":
+            effect = 0.5
+        elif attacker_ability['effectiveness'] == "л":
+            effect = 2
+        elif attacker_ability['effectiveness'] == "ф":
+            pass  # доделать критические неудачи!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        else:
+            pass
+
+        if attacker_ability['type_of_magic_or_abilities'] in "к, у, з, м":
+            for attacker_unit in attacker_list:
+                if attacker_ability['number_of_targets'] >= 1:
+
+                    if attacker_ability['type_of_magic_or_abilities'] == "у":
+                        attacker_unit['damage'] += attacker_ability['damage_or_effect'] * effect
+
+                    elif attacker_ability['type_of_magic_or_abilities'] == "к":
+                        attacker_unit['combat_bonus'] += attacker_ability['damage_or_effect'] * effect
+
+                    elif attacker_ability['type_of_magic_or_abilities'] == "з":
+                        attacker_unit['defence'] += attacker_ability['damage_or_effect'] * effect
+
+                    elif attacker_ability['type_of_magic_or_abilities'] == "м":
+                        attacker_unit['morale'] += attacker_ability['damage_or_effect'] * effect
+
+                    attacker_ability['number_of_targets'] -= 1
+
+                else:
+                    break
+
+        elif attacker_ability['type_of_magic_or_abilities'] in "а, д, ж":
+            for defender_unit in defender_list:
+                if attacker_ability['number_of_targets'] >= 1:
+
+                    if attacker_ability['type_of_magic_or_abilities'] == "а":
+                        damage = defender_unit["max_combat"] // 100 * (attacker_ability['damage_or_effect'] * effect)
+                        defender_unit['current_combat'] -= damage
+
+                    elif attacker_ability['type_of_magic_or_abilities'] == "д":
+                        defender_unit['defence'] -= attacker_ability['damage_or_effect'] * effect
+
+                    elif attacker_ability['type_of_magic_or_abilities'] == "ж":
+                        defender_unit['morale'] -= attacker_ability['damage_or_effect'] * effect
+                else:
+                    break
+
+    return attacker_list, defender_list
+
+
+    # сделать как в первой стадии только чисто для магии
+    # переделать эксель таблицу и добавить параметр бонуса к косбатке, его будет бафать заклы и способности
+    # на бонусы к комбатке. Учесть момент с потерями т.к. в первой стадии они процентные, а во второй с учетом
+    # бонуса к комбатке. Добавить во вторую стадию и парс-листы момент с бонусом к комбатке
+
+
 def first_stage_battle(attacker_list, defender_list):
     """
     this function counts first stage battle and modified army lists to use it in second battle stage
@@ -22,7 +82,7 @@ def first_stage_battle(attacker_list, defender_list):
 
     for attacker_army_unit in attacker_list:  # iterate by unit in first army list
         for defender_army_unit in defender_list:  # iterate by unit in second army list
-
+            print(defender_army_unit)
             # if unit in second army have type which damaged by first army unit and second army have
             # at least 1 combat point(HP)
             if defender_army_unit["unit_type"] in attacker_army_unit["targets"] and defender_army_unit["current_combat"] > 0:
@@ -38,6 +98,7 @@ def first_stage_battle(attacker_list, defender_list):
                 #  This is necessary to introduce an element of chance
 
                 break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
+
 
     defender_after_casualties = remove_dead_units(list.copy(defender_list))
 
@@ -138,20 +199,6 @@ def military_intelligence():
     pass
 
 
-def magic_and_abilities():
-    """
-    this cycle applies magic in the first stage of the battle
-    the first "if" operator selects the type of magic to be used
-    """
-    for spell_and_ability in first_army_magic_and_abilities_list:
-        if spell_and_ability['name_of_magic_or_abilities'] == "а":
-            for second_army_unit in second_army_combat_list:
-                second_army_unit["current_combat"] -= spell_and_ability['skill_damage']
-                spell_and_ability['number_of_targets'] -= 1
-                if spell_and_ability['number_of_targets'] == 0:
-                    break
-
-
 def parser(worksheet, keys_dict, minrow, maxrow, mincol, maxcol):
     pars_list = []
 
@@ -212,23 +259,24 @@ def main_logic():
     xls_worksheet = xls_workbook.active
 
     keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
-                          "damage", "defence", "morale", "targets", "amount")
+                          "damage", "defence", "morale", "targets", "combat_bonus", "amount")
     keys_for_magic_dict = ('name_of_magic_or_abilities', 'type_of_magic_or_abilities',
-                           'skill_damage', 'number_of_targets', 'effectiveness')
+                           'damage_or_effect', 'number_of_targets', 'effectiveness')
 
-    first_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=2, maxcol=10)
-    second_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=13, maxcol=21)
+    first_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=2, maxcol=11)
+    second_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=14, maxcol=23)
 
     first_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=2, maxcol=6)
-    second_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=13, maxcol=17)
+    second_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=14, maxcol=18)
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
 
-    first_army_first_stage = first_stage_battle(attacker_list=second_army_combat_list,
-                                                defender_list=first_army_combat_list)
-    second_army_first_stage = first_stage_battle(attacker_list=first_army_combat_list,
-                                                 defender_list=second_army_combat_list)
+    list1, list2 = magic_and_ability_stage(first_army_combat_list, second_army_combat_list, first_ability_list)
+    after_magic_first_list, after_magic_second_list = magic_and_ability_stage(list2, list1, second_ability_list)
+
+    first_army_first_stage = first_stage_battle(after_magic_second_list, after_magic_first_list)
+    second_army_first_stage = first_stage_battle(after_magic_first_list, after_magic_second_list)
 
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage, second_army_first_stage)
 
