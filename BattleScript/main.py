@@ -2,11 +2,6 @@ import openpyxl as op
 from random import shuffle, randint
 import pprint
 
-"""
-lists of first and second army parsed from xlsx file, same units does not divide by quantity
-***_pars_list[7] its amount of units with the same parameters. In fact - stack of units
-"""
-
 
 morale_modifier = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
 base_casualties = 30  # base level of casualties(in fact - percents) used in second battle stage
@@ -16,17 +11,19 @@ second_stage_advantage = 0
 
 
 def magic_and_ability_stage(attacker_list, defender_list, attacker_abil_list):
+    shuffle(attacker_list)
+    shuffle(defender_list)
+
     for attacker_ability in attacker_abil_list:
         effect = 1
-
         if attacker_ability['effectiveness'] == "ч":
             effect = 0.5
         elif attacker_ability['effectiveness'] == "л":
             effect = 2
         elif attacker_ability['effectiveness'] == "ф":
             pass  # доделать критические неудачи!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-        else:
-            pass
+        elif attacker_ability['effectiveness'] == "о":
+            effect = 1
 
         if attacker_ability['type_of_magic_or_abilities'] in "к, у, з, м":
             for attacker_unit in attacker_list:
@@ -62,13 +59,13 @@ def magic_and_ability_stage(attacker_list, defender_list, attacker_abil_list):
 
                     elif attacker_ability['type_of_magic_or_abilities'] == "ж":
                         defender_unit['morale'] -= attacker_ability['damage_or_effect'] * effect
+
+                    attacker_ability['number_of_targets'] -= 1
                 else:
                     break
 
     return attacker_list, defender_list
 
-
-    # сделать как в первой стадии только чисто для магии
     # переделать эксель таблицу и добавить параметр бонуса к косбатке, его будет бафать заклы и способности
     # на бонусы к комбатке. Учесть момент с потерями т.к. в первой стадии они процентные, а во второй с учетом
     # бонуса к комбатке. Добавить во вторую стадию и парс-листы момент с бонусом к комбатке
@@ -82,7 +79,6 @@ def first_stage_battle(attacker_list, defender_list):
 
     for attacker_army_unit in attacker_list:  # iterate by unit in first army list
         for defender_army_unit in defender_list:  # iterate by unit in second army list
-            print(defender_army_unit)
             # if unit in second army have type which damaged by first army unit and second army have
             # at least 1 combat point(HP)
             if defender_army_unit["unit_type"] in attacker_army_unit["targets"] and defender_army_unit["current_combat"] > 0:
@@ -265,20 +261,30 @@ def main_logic():
 
     first_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=2, maxcol=11)
     second_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=14, maxcol=23)
+    print(first_army_pars_list)
+    print("Парсинг")
 
     first_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=2, maxcol=6)
     second_ability_list = parser(xls_worksheet, keys_for_magic_dict, minrow=41, maxrow=55, mincol=14, maxcol=18)
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
+    print(first_army_combat_list)
+    print("Готовые листы")
 
     list1, list2 = magic_and_ability_stage(first_army_combat_list, second_army_combat_list, first_ability_list)
     after_magic_first_list, after_magic_second_list = magic_and_ability_stage(list2, list1, second_ability_list)
+    print(after_magic_first_list)
+    print("Магическая стадия")
 
     first_army_first_stage = first_stage_battle(after_magic_second_list, after_magic_first_list)
     second_army_first_stage = first_stage_battle(after_magic_first_list, after_magic_second_list)
+    print(first_army_first_stage)
+    print("Первая стадия")
 
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage, second_army_first_stage)
+    print(first_army_second_stage)
+    print("Вторая стадия")
 
     file_writer(first_army_second_stage, second_army_second_stage)
 
