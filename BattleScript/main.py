@@ -19,21 +19,22 @@ def first_stage_battle(attacker_list, defender_list):
         for defender_army_unit in defender_list:  # iterate by unit in second army list
             # if unit in second army have type which damaged by first army unit and second army have
             # at least 1 combat point(HP)
-            if defender_army_unit["unit_type"] in attacker_army_unit["targets"] and defender_army_unit[
-                "current_combat"] > 0:
+            if attacker_army_unit["targets"]:
+                if defender_army_unit["unit_type"] in attacker_army_unit["targets"] and defender_army_unit[
+                    "current_combat"] > 0:
 
-                # this formula counts damage
-                dmg1 = defender_army_unit["max_combat"] // 100 * (
+                    # this formula counts damage
+                    dmg1 = defender_army_unit["max_combat"] // 100 * (
                             attacker_army_unit["damage"] - defender_army_unit["defence"])
 
-                if dmg1 > 0:  # if protection bigger then the damage then no damage is dealt(it needs to prevent
-                    # negative damage)
-                    defender_army_unit["current_combat"] -= dmg1  # dealt damage to unit
+                    if dmg1 > 0:  # if protection bigger then the damage then no damage is dealt(it needs to prevent
+                        # negative damage)
+                        defender_army_unit["current_combat"] -= dmg1  # dealt damage to unit
 
-                shuffle(defender_list)  # random function which shuffle army list in each iteration
-                #  This is necessary to introduce an element of chance
+                    shuffle(defender_list)  # random function which shuffle army list in each iteration
+                    #  This is necessary to introduce an element of chance
 
-                break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
+                    break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
 
     defender_after_casualties = remove_dead_units(list.copy(defender_list))
 
