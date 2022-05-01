@@ -54,7 +54,7 @@ def combat_points_counter(army):
             if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
                 # check succeeds if morale >= randint
                 army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
-            elif 0 > unit["morale"] >= randint(0, -100):  # negative morale check(morale<0).
+            elif 0 > unit["morale"] >= randint(-100, 0):  # negative morale check(morale<0).
                 # check succeeds if morale >= randint
                 army_sum_combat += int(unit["current_combat"] / morale_modifier)  # add combat point // morale to sum
             else:
@@ -207,7 +207,6 @@ def main_logic():
 
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage,
                                                                             second_army_first_stage)
-
 
     file_writer(first_army_second_stage, second_army_second_stage)
 
