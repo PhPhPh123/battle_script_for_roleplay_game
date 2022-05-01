@@ -1,6 +1,6 @@
 import openpyxl as op
 from random import shuffle, randint
-import pprint
+from pprint import pprint
 
 morale_modifier = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
 base_casualties = 30  # base level of casualties(in fact - percents) used in second battle stage
@@ -174,14 +174,14 @@ def file_writer(first_list, second_list):
         if first_list:
             res.write("\nПервая армия выжившие:\n")
             for line in first_list:
-                res.write(str(line["unit_name"] + ' ' + str(line['current_combat']) + '\n'))
+                res.write(str(line["unit_name"] + ' оставшаяся комбатка: ' + str(line['current_combat']) + '\n'))
         else:
             res.write("Первая армия полностью уничтожена")
 
         if second_list:
             res.write("\nВторая армия выжившие:\n")
             for line in second_list:
-                res.write(str(line["unit_name"]) + ' ' + str(line['current_combat']) + '\n')
+                res.write(str(line["unit_name"]) + ' оставшаяся комбатка: ' + str(line['current_combat']) + '\n')
         else:
             res.write("\nВторая армия полностью уничтожена")
 
@@ -198,12 +198,16 @@ def main_logic():
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
+    pprint(first_army_combat_list)
 
-    first_army_first_stage = first_stage_battle(first_army_combat_list, second_army_combat_list)
-    second_army_first_stage = first_stage_battle(second_army_combat_list, first_army_combat_list)
+    first_army_first_stage = first_stage_battle(second_army_combat_list, first_army_combat_list)
+    second_army_first_stage = first_stage_battle(first_army_combat_list, second_army_combat_list)
+
+    pprint(first_army_first_stage)
 
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage,
                                                                             second_army_first_stage)
+
 
     file_writer(first_army_second_stage, second_army_second_stage)
 
