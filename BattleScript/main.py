@@ -166,7 +166,18 @@ def army_list_creator(parslist):
     return numerated_army_list
 
 
-def file_writer(first_list, second_list):
+def pop_casualties(army_list):
+    casualties = 0
+    for unit in army_list:
+        casualties += int(100 - (unit["current_combat"] / unit['max_combat'] * 100))
+    return casualties
+
+
+def final_casualites_in_pops(casualty_before_battle: int, sum_of_casualty_after_battle) -> int:
+    return sum_of_casualty_after_battle - casualty_before_battle
+
+
+def file_writer(first_list, second_list, first_army_pop_cas, second_army_pop_cas):
     with open("result.txt", 'w', encoding="utf-8") as res:
         res.write(f'Бой проведен. Его результатом стала {winner}')
         res.write(f'\nПреемущество победителя во второй фазе боя - {abs(second_stage_advantage)}%\n')
@@ -185,6 +196,9 @@ def file_writer(first_list, second_list):
         else:
             res.write("\nВторая армия полностью уничтожена")
 
+        res.write(f"\nПервая армия потеряла {first_army_pop_cas} юнитов(населения)\n")
+        res.write(f"Вторая армия потеряла {second_army_pop_cas} юнитов(населения)")
+
 
 def main_logic():
     xls_workbook = op.load_workbook("table.xlsx", read_only=True)
@@ -198,17 +212,24 @@ def main_logic():
 
     first_army_combat_list = army_list_creator(first_army_pars_list)
     second_army_combat_list = army_list_creator(second_army_pars_list)
-    pprint(first_army_combat_list)
+
+    first_army_shortage_before_the_battle = pop_casualties(first_army_combat_list)
+    second_army_shortage_before_the_battle = pop_casualties(second_army_combat_list)
 
     first_army_first_stage = first_stage_battle(second_army_combat_list, first_army_combat_list)
     second_army_first_stage = first_stage_battle(first_army_combat_list, second_army_combat_list)
 
-    pprint(first_army_first_stage)
-
     first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage,
                                                                             second_army_first_stage)
 
-    file_writer(first_army_second_stage, second_army_second_stage)
+    first_army_pop_cas = pop_casualties(first_army_second_stage)
+    second_army_pop_cas = pop_casualties(second_army_second_stage)
+
+    first_army_sum_of_casualies = final_casualites_in_pops(first_army_shortage_before_the_battle, first_army_pop_cas)
+    second_army_sum_of_casualies = final_casualites_in_pops(second_army_shortage_before_the_battle, second_army_pop_cas)
+
+    file_writer(first_army_second_stage, second_army_second_stage,
+                first_army_sum_of_casualies, second_army_sum_of_casualies)
 
 
 if __name__ == "__main__":
