@@ -1,3 +1,5 @@
+from typing import Tuple, List, Any
+
 import openpyxl as op
 from random import shuffle, randint
 from pprint import pprint
@@ -34,11 +36,12 @@ def first_stage_battle(attacker_list, defender_list):
                     shuffle(defender_list)  # random function which shuffle army list in each iteration
                     #  This is necessary to introduce an element of chance
 
-                    break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then 1 unit
+                    break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then
+                    # 1 unit
 
-    defender_after_casualties = remove_dead_units(list.copy(defender_list))
+    defender_after_casualties, defender_graveyard = remove_dead_units(list.copy(defender_list))
 
-    return defender_after_casualties
+    return defender_after_casualties, defender_graveyard
 
 
 def combat_points_counter(army):
@@ -54,12 +57,14 @@ def combat_points_counter(army):
             if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
                 # check succeeds if morale >= randint
                 army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
+                unit["morale_boost"] = 'good'
             elif 0 > unit["morale"] >= randint(-100, 0):  # negative morale check(morale<0).
                 # check succeeds if morale >= randint
+                unit["morale_boost"] = 'bad'
                 army_sum_combat += int(unit["current_combat"] / morale_modifier)  # add combat point // morale to sum
             else:
                 army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
-
+                unit["morale_boost"] = False
     return army_sum_combat
 
 
@@ -117,18 +122,22 @@ def second_stage_battle(first_army, second_army):
     for unit in second_army:
         unit["current_combat"] = int(unit["current_combat"] / 100 * (100 - second_army_casualties))
 
-    first_army_afterfight = remove_dead_units(first_army)
-    second_army_afterfight = remove_dead_units(second_army)
+    first_army_afterfight, first_army_graveyard = remove_dead_units(first_army)
+    second_army_afterfight, second_army_graveyard = remove_dead_units(second_army)
 
-    return first_army_afterfight, second_army_afterfight
+    return first_army_afterfight, second_army_afterfight, first_army_graveyard, second_army_graveyard
 
 
-def remove_dead_units(unitlist: list) -> list:
+def remove_dead_units(unitlist: list) -> tuple[list[Any], list[Any]]:
     new_list = []
+    graveyard_list = []
     for unit in unitlist:
         if unit["current_combat"] > 0:
             new_list.append(unit)
-    return new_list
+        else:
+            graveyard_list.append(unit)
+
+    return new_list, graveyard_list
 
 
 def parser(worksheet, keys_dict, minrow, maxrow, mincol, maxcol):
@@ -168,41 +177,72 @@ def army_list_creator(parslist):
 
 def shortage_before_and_after_battle(list_army):
     for unit in list_army:
-        if "shortage" not in unit:
-            unit["shortage"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100))
+        if unit['unit_type'] not in 'ч+п+о':
+            if "shortage" not in unit:
+                unit["shortage"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100))
+            else:
+                unit["casualties"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100)) - unit["shortage"]
         else:
-            unit["casualties"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100)) - unit["shortage"]
+            unit["casualties"] = 0
     return list_army
 
 
-def file_writer(first_list, second_list):
-    with open("result.txt", 'w', encoding="utf-8") as res:
+def casualties_for_graveyard(graveyard_list):
+    for corpse in graveyard_list:
+        if corpse['unit_type'] in 'ч+п+о':
+            corpse["casualties"] = 1
+        else:
+            corpse["casualties"] = int(100 - corpse['shortage'])
+    return graveyard_list
+
+
+def army_statistics(army_list, grave_list, number_of_army):
+    with open("result.txt", mode='a', encoding="utf-8") as stat:
+        if number_of_army == 1:
+            stat.write("\nСтатистика первой армии:")
+        else:
+            stat.write("\nСтатистика второй армии:")
+
+        if army_list:
+            first_arm_cas = 0
+            stat.write("\nВыжившие юниты:\n")
+            for line in army_list:
+                first_arm_cas += line["casualties"]
+                stat.write(f'{line["unit_name"]} оставшаяся комбатка: {line["current_combat"]} '
+                           f'погибло юнитов: {line["casualties"]} \n')
+        else:
+            stat.write("\nАрмия полностью уничтожена")
+
+        stat.write('\nПогибшие юниты:\n')
+        for corpse in grave_list:
+            stat.write(f'{corpse["unit_name"]}\n')
+        if not grave_list:
+            stat.write('Ни один юнит не уничтожен полностью')
+
+        stat.write(f'\nCуммарные потери по количеству населения равны: '
+                   f'{sum(i["casualties"] for i in grave_list + army_list)}\n\n')
+
+        stat.write('Бафы и дебафы морали:\n')
+        for hero in army_list+grave_list:
+            try:
+                if hero["morale_boost"] == 'good':
+                    stat.write(f'{hero["unit_name"]} воодушевился и удвоил свою комбатку в бою\n')
+                elif hero["morale_boost"] == 'bad':
+                    stat.write(f'{hero["unit_name"]} пошатнулся боевым духом и струсил\n')
+            except KeyError:
+                pass
+        else:
+            stat.write('Никто не проявил себя особым образом')
+        stat.write('\n\n')
+
+
+def file_writer(first_list, second_list, first_grave_list, second_grave_list):
+    with open("result.txt", mode='w', encoding="utf-8") as res:
         res.write(f'Бой проведен. Его результатом стала {winner}')
         res.write(f'\nПреемущество победителя во второй фазе боя - {abs(second_stage_advantage)}%\n')
 
-        if first_list:
-            first_arm_cas = 0
-            res.write("\nПервая армия выжившие:\n")
-            for line in first_list:
-                first_arm_cas += line["casualties"]
-                res.write(f'{line["unit_name"]} оставшаяся комбатка: {line["current_combat"]} '
-                          f'погибло юнитов: {line["casualties"]} \n')
-            res.write(f'Cуммарные потери юнитов(населения) составили {first_arm_cas} \n')
-        else:
-            res.write("Первая армия полностью уничтожена")
-
-        if second_list:
-            second_arm_cas = 0
-            res.write("\nВторая армия выжившие:\n")
-            for line in second_list:
-                second_arm_cas += line["casualties"]
-                res.write(f'{line["unit_name"]} оставшаяся комбатка: {line["current_combat"]} '
-                          f'погибло юнитов: {line["casualties"]} \n')
-            res.write(f'Cуммарные потери юнитов(населения) составили {second_arm_cas}')
-        else:
-            res.write("\nВторая армия полностью уничтожена")
-
-
+    army_statistics(first_list, first_grave_list, 1)
+    army_statistics(second_list, second_grave_list, 2)
 
 
 def main_logic():
@@ -221,17 +261,27 @@ def main_logic():
     first_army_with_shortage = shortage_before_and_after_battle(first_army_combat_list)
     second_army_with_shortage = shortage_before_and_after_battle(second_army_combat_list)
 
-    first_army_first_stage = first_stage_battle(second_army_with_shortage, first_army_with_shortage)
-    second_army_first_stage = first_stage_battle(first_army_with_shortage, second_army_with_shortage)
+    first_army_first_stage, first_army_graveyard_1st_stage = first_stage_battle(second_army_with_shortage,
+                                                                                first_army_with_shortage)
+    second_army_first_stage, second_army_graveyard_1st_stage = first_stage_battle(first_army_with_shortage,
+                                                                                  second_army_with_shortage)
 
-    first_army_second_stage, second_army_second_stage = second_stage_battle(first_army_first_stage,
-                                                                            second_army_first_stage)
+    (first_army_second_stage, second_army_second_stage,
+     first_army_graveyard_2nd_stage, second_army_graveyard_2nd_stage) = second_stage_battle(first_army_first_stage,
+                                                                                            second_army_first_stage)
+
+    first_army_final_graveyard = casualties_for_graveyard(first_army_graveyard_1st_stage +
+                                                          first_army_graveyard_2nd_stage)
+    second_army_final_graveyard = casualties_for_graveyard(second_army_graveyard_1st_stage +
+                                                           second_army_graveyard_2nd_stage)
 
     first_army_with_casualties = shortage_before_and_after_battle(first_army_second_stage)
     second_army_with_casualties = shortage_before_and_after_battle(second_army_second_stage)
 
-    file_writer(first_army_with_casualties, second_army_with_casualties)
+    file_writer(first_army_with_casualties, second_army_with_casualties,
+                first_army_final_graveyard, second_army_final_graveyard)
 
+    pprint(second_army_final_graveyard)
 
 if __name__ == "__main__":
     main_logic()
