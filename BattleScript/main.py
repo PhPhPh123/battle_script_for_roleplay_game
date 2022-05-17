@@ -58,7 +58,7 @@ def combat_points_counter(army):
                 # check succeeds if morale >= randint
                 army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
                 unit["morale_boost"] = 'good'
-            elif 0 > unit["morale"] >= randint(-100, 0):  # negative morale check(morale<0).
+            elif 0 > unit["morale"] <= randint(-100, 0):  # negative morale check(morale<0).
                 # check succeeds if morale >= randint
                 unit["morale_boost"] = 'bad'
                 army_sum_combat += int(unit["current_combat"] / morale_modifier)  # add combat point // morale to sum
@@ -282,6 +282,7 @@ def main_logic():
                 first_army_final_graveyard, second_army_final_graveyard)
 
     pprint(second_army_final_graveyard)
+
 
 if __name__ == "__main__":
     main_logic()
