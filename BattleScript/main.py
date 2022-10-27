@@ -1,11 +1,11 @@
-from typing import Tuple, List, Any
+from typing import Any
 
 import openpyxl as op
 from random import shuffle, randint
-from pprint import pprint
+from copy import deepcopy
 
-morale_modifier = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
-base_casualties = 30  # base level of casualties(in fact - percents) used in second battle stage
+MORALE_MODIFIER = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
+BASE_CASUALTIES = 30  # base level of casualties(in fact - percents) used in second battle stage
 
 winner = None
 second_stage_advantage = 0
@@ -39,7 +39,7 @@ def first_stage_battle(attacker_list, defender_list):
                     break  # this break in fact return us to first "for" cycle. Its need to prevent hitting more then
                     # 1 unit
 
-    defender_after_casualties, defender_graveyard = remove_dead_units(list.copy(defender_list))
+    defender_after_casualties, defender_graveyard = remove_dead_units(deepcopy(defender_list))
 
     return defender_after_casualties, defender_graveyard
 
@@ -56,12 +56,12 @@ def combat_points_counter(army):
         if unit["current_combat"] > 0:  # if unit is not dead(combat point <= 0)
             if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
                 # check succeeds if morale >= randint
-                army_sum_combat += unit["current_combat"] * morale_modifier  # add combat point * morale to sum
+                army_sum_combat += unit["current_combat"] * MORALE_MODIFIER  # add combat point * morale to sum
                 unit["morale_boost"] = 'good'
             elif 0 > unit["morale"] <= randint(-100, 0):  # negative morale check(morale<0).
                 # check succeeds if morale >= randint
                 unit["morale_boost"] = 'bad'
-                army_sum_combat += int(unit["current_combat"] / morale_modifier)  # add combat point // morale to sum
+                army_sum_combat += int(unit["current_combat"] / MORALE_MODIFIER)  # add combat point // morale to sum
             else:
                 army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
                 unit["morale_boost"] = False
@@ -91,14 +91,14 @@ def second_stage_battle(first_army, second_army):
     advantage = army_advantage(first_army_final_cp, second_army_final_cp)
 
     if advantage > 0:
-        first_army_casualties = base_casualties - advantage // 2
-        second_army_casualties = base_casualties + advantage
+        first_army_casualties = BASE_CASUALTIES - advantage // 2
+        second_army_casualties = BASE_CASUALTIES + advantage
     elif advantage < 0:
-        first_army_casualties = base_casualties + abs(advantage)
-        second_army_casualties = base_casualties - abs(advantage // 2)
+        first_army_casualties = BASE_CASUALTIES + abs(advantage)
+        second_army_casualties = BASE_CASUALTIES - abs(advantage // 2)
     else:
-        first_army_casualties = base_casualties
-        second_army_casualties = base_casualties
+        first_army_casualties = BASE_CASUALTIES
+        second_army_casualties = BASE_CASUALTIES
 
     if first_army_casualties >= 100:
         first_army_casualties = 100
@@ -158,7 +158,7 @@ def army_unit_numeration(arm_list):
 
     for num, unit in enumerate(sorted_arm_list, start=1):
         unit["unit_name"] += f" ,юнит №{num}"
-    numerated_arm_list = sorted_arm_list.copy()
+    numerated_arm_list = deepcopy(sorted_arm_list)
 
     return numerated_arm_list
 
@@ -280,8 +280,6 @@ def main_logic():
 
     file_writer(first_army_with_casualties, second_army_with_casualties,
                 first_army_final_graveyard, second_army_final_graveyard)
-
-    pprint(second_army_final_graveyard)
 
 
 if __name__ == "__main__":
