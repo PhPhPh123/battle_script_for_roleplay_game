@@ -1,14 +1,21 @@
-from typing import Any
+"""
+Основной модуль скрипта, в котором производятся все расчеты.
+Его работа основана на парсинге информации с excel-файла и создание из него списка с юнитами первого и второго войска
+Затем эти списки отправляются в первую стадию боя(first_stage_battle)где наносят друг другу урон согласно их параметра
+атаки, затем во вторую фазу боя(second_stage_battle), где идет сравнения их боевой эффективности(он же уровень здоровья)
+
+"""
 
 import openpyxl as op
+from typing import Any
 from random import shuffle, randint
 from copy import deepcopy
 
-MORALE_MODIFIER = 2  # this mod multiplies combat points if unit will be lucky. Used in second battle stage
-BASE_CASUALTIES = 30  # base level of casualties(in fact - percents) used in second battle stage
-
-winner = None
-second_stage_advantage = 0
+"Глобальные переменные и константы"
+MORALE_MODIFIER = 2  # Глобальная константа морали
+BASE_CASUALTIES = 30  # Глобальная константа базового уровня потерь
+winner = None  # инициализация глобальной переменная победителя боя
+second_stage_advantage = 0  # инициализация глобальная переменной преимущества победителя во второй фазе боя
 
 
 def first_stage_battle(attacker_list, defender_list):
@@ -140,54 +147,78 @@ def remove_dead_units(unitlist: list) -> tuple[list[Any], list[Any]]:
     return new_list, graveyard_list
 
 
-def parser(worksheet, keys_dict, minrow, maxrow, mincol, maxcol):
-    pars_list = []
+class Parser:
+    def __init__(self, xls_worksheet):
+        self.keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
+                                   "damage", "defence", "morale", "targets", "combat_bonus", "amount")
+        self.xls_worksheet = xls_worksheet
 
-    for row in worksheet.iter_rows(min_row=minrow, max_row=maxrow, min_col=mincol, max_col=maxcol,
-                                   values_only=True):
-        if not row[0]:
-            break
-        army_or_ability_dict = dict(zip(keys_dict, row))
-        pars_list.append(army_or_ability_dict)
+    def parse_excel(self, worksheet, minrow, maxrow, mincol, maxcol):
+        pars_list = []
 
-    return pars_list
+        for row in worksheet.iter_rows(min_row=minrow, max_row=maxrow, min_col=mincol, max_col=maxcol,
+                                       values_only=True):
+            if not row[0]:
+                break
+            army_or_ability_dict = dict(zip(self.keys_for_army_dict, row))
+            pars_list.append(army_or_ability_dict)
+
+        return pars_list
+
+    @staticmethod
+    def numerate_army_units(arm_list):
+        sorted_arm_list = sorted(arm_list, key=lambda islist: islist["unit_name"])
+
+        for num, unit in enumerate(sorted_arm_list, start=1):
+            unit["unit_name"] += f" ,юнит №{num}"
+        numerated_arm_list = deepcopy(sorted_arm_list)
+
+        return numerated_arm_list
+
+    def create_army_lists(self, parslist):
+        army_list = []
+
+        for i in parslist:
+            while i["amount"] >= 1:
+                army_list.append(dict(list(i.items())[:-1]))
+                i["amount"] -= 1
+        numerated_army_list = self.numerate_army_units(army_list)
+
+        return numerated_army_list
+
+    def create_both_armies(self):
+        first_army_pars_list = self.parse_excel(self.xls_worksheet, minrow=4, maxrow=35, mincol=2, maxcol=11)
+        second_army_pars_list = self.parse_excel(self.xls_worksheet, minrow=4, maxrow=35, mincol=14, maxcol=23)
+
+        first_army_combat_list = self.create_army_lists(first_army_pars_list)
+        second_army_combat_list = self.create_army_lists(second_army_pars_list)
+
+        return first_army_combat_list, second_army_combat_list
 
 
-def army_unit_numeration(arm_list):
-    sorted_arm_list = sorted(arm_list, key=lambda islist: islist["unit_name"])
-
-    for num, unit in enumerate(sorted_arm_list, start=1):
-        unit["unit_name"] += f" ,юнит №{num}"
-    numerated_arm_list = deepcopy(sorted_arm_list)
-
-    return numerated_arm_list
-
-
-def army_list_creator(parslist):
-    army_list = []
-
-    for i in parslist:
-        while i["amount"] >= 1:
-            army_list.append(dict(list(i.items())[:-1]))
-            i["amount"] -= 1
-    numerated_army_list = army_unit_numeration(army_list)
-
-    return numerated_army_list
-
-
-def shortage_before_and_after_battle(list_army):
+def shortage_before_and_after_battle(list_army: list[dict, ]) -> list[dict]:
+    """
+    Данная функция определяет в войске нехватку боевой эффективности(комбатки) относительно максимальной эффективности.
+    Начальная нехватка ДО боя определяется ключем "shortage", а после боя ключом "casualties". Т.е. "shortage" это то,
+    те потери, которые были у юнита до сражения, а "casualties" это потери, которые возникли в результате сражения, но
+    без учета изначальной нехватки
+    :param list_army: список армии со словарями юнитов
+    :return: лист с добавленными ключ-значениями нехватки и потерь
+    """
     for unit in list_army:
-        if unit['unit_type'] not in 'ч+п+о':
-            if "shortage" not in unit:
+        if unit['unit_type'] not in 'ч+п+о':  # Данные теги юнитов являются одиночными и не имеют статуса нехватки
+            if "shortage" not in unit:  # перед битвой ключа потерь еще нет и его нужно создать и посчитать значения
+                # нехватки комбатки
                 unit["shortage"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100))
-            else:
+            else:  # если ключ нехватки уже есть, значит нужно подсчитать потери на основе урона в бою и нехватки до боя
                 unit["casualties"] = int(100 - (unit["current_combat"] / unit['max_combat'] * 100)) - unit["shortage"]
-        else:
+        else:  # для одиночных юнитов по умолчанию ставится потери равные 0 т.к. их убийство произойдет, по механике,
+            # только в случае полного уничтожения армии(вайпа), в иных случаях они выживают
             unit["casualties"] = 0
     return list_army
 
 
-def casualties_for_graveyard(graveyard_list):
+def casualties_for_graveyard(graveyard_list: list):
     for corpse in graveyard_list:
         if corpse['unit_type'] in 'ч+п+о':
             corpse["casualties"] = 1
@@ -223,7 +254,7 @@ def army_statistics(army_list, grave_list, number_of_army):
                    f'{sum(i["casualties"] for i in grave_list + army_list)}\n\n')
 
         stat.write('Бафы и дебафы морали:\n')
-        for hero in army_list+grave_list:
+        for hero in army_list + grave_list:
             try:
                 if hero["morale_boost"] == 'good':
                     stat.write(f'{hero["unit_name"]} воодушевился и удвоил свою комбатку в бою\n')
@@ -245,18 +276,18 @@ def file_writer(first_list, second_list, first_grave_list, second_grave_list):
     army_statistics(second_list, second_grave_list, 2)
 
 
-def main_logic():
+def main_logic() -> None:
+    """
+    Это основная фасадная функция, контролирующая работу скрипта, по этапам
+    :return: None
+    """
+    # Создание рабочей криги и рабочего листа excel
     xls_workbook = op.load_workbook("table.xlsx", read_only=True)
     xls_worksheet = xls_workbook.active
 
-    keys_for_army_dict = ("unit_name", "unit_type", "max_combat", "current_combat",
-                          "damage", "defence", "morale", "targets", "combat_bonus", "amount")
-
-    first_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=2, maxcol=11)
-    second_army_pars_list = parser(xls_worksheet, keys_for_army_dict, minrow=4, maxrow=35, mincol=14, maxcol=23)
-
-    first_army_combat_list = army_list_creator(first_army_pars_list)
-    second_army_combat_list = army_list_creator(second_army_pars_list)
+    # Этап парсинга данных из excel-файла и создание на его основе двух армий в виде двух списков со словарями
+    parser_obj = Parser(xls_worksheet)
+    first_army_combat_list, second_army_combat_list = parser_obj.create_both_armies()
 
     first_army_with_shortage = shortage_before_and_after_battle(first_army_combat_list)
     second_army_with_shortage = shortage_before_and_after_battle(second_army_combat_list)
