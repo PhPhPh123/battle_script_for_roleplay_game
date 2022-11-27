@@ -6,7 +6,6 @@
 """
 
 import openpyxl as op
-from typing import Any
 from random import shuffle, randint
 from copy import deepcopy
 
@@ -156,75 +155,101 @@ class FirstBattleStage:
 
 
 class SecondBattleStage:
-    MORALE_MODIFIER = 2  # константа морали
+    MORALE_MODIFIER = 2  # константа множителя морали
     BASE_CASUALTIES = 30  # константа базового уровня потерь
 
-    def __init__(self, first_army, second_army, first_army_first_stage_graveyard, second_army_first_stage_graveyard):
-        self.second_stage_advantage = 0
-        self.winner = None
+    def __init__(self, first_army: list[dict, ...], second_army: list[dict, ...],
+                 first_army_first_stage_graveyard: list[dict, ...], second_army_first_stage_graveyard: list[dict, ...]):
+        self.second_stage_advantage = 0  # инициализация преемущества одной армии на другой, в процентах
+        self.winner = None  # инициализация победителя по итогам второй стадии
         self.first_army = first_army
         self.second_army = second_army
 
+        # кладбища от первой стадии битвы
         self.first_army_first_stage_graveyard = first_army_first_stage_graveyard
         self.second_army_first_stage_graveyard = second_army_first_stage_graveyard
 
+        # кладбища от второй стадии битвы, инициализация
         self.first_army_second_stage_graveyard = None
         self.second_army_second_stage_graveyard = None
 
     def count_combat_points(self, army: list[dict, ...]) -> int:
         """
-        this function counts sum of combat points to use it in second battle stage
-        also this function use moral modifier to double (or halve) combat points if unit is lucky
-        :return: sum of first and second army combat points
+        Данный метод подсчитывает общее количество очков комбатки(здоровья) армии, в подсчете также участвует
+        модификатор морали, который может удвоить уменьшить в 2 раза размер комбатки юнита. Мораль это буквально
+        процентный шанс того, что произойдет положительное или отрицательное изменение согласно модулю цифры комбатки
+        Например есть мораль -15% то это значит, что с 15% шансом юнит будет задизморален
+        :return: общая сумма комбатки армии
         """
-        army_sum_combat = 0  # final combat points of army
+        army_sum_combat = 0  # инициализация суммы
 
-        for unit in army:  # iterate by unit in army list
-            if unit["current_combat"] > 0:  # if unit is not dead(combat point <= 0)
-                if 0 < unit["morale"] >= randint(0, 100):  # positive morale check(morale>0).
-                    # check succeeds if morale >= randint
-                    army_sum_combat += unit["current_combat"] * self.MORALE_MODIFIER  # add combat point * morale to sum
-                    unit["morale_boost"] = 'good'
-                elif 0 > unit["morale"] <= randint(-100, 0):  # negative morale check(morale<0).
-                    # check succeeds if morale >= randint
-                    unit["morale_boost"] = 'bad'
-                    army_sum_combat += int(
-                        unit["current_combat"] / self.MORALE_MODIFIER)  # add combat point // morale to sum
-                else:
-                    army_sum_combat += unit["current_combat"]  # add combat points to sum if morale == 0
-                    unit["morale_boost"] = False
+        for unit in army:  # прохожу юнитом по армии
+            if unit["current_combat"] > 0:  # если юнит живой
+
+                if 0 < unit["morale"] >= randint(0, 100):  # если его мораль позитивная и значение случайности удачно
+                    # добавляю в общий список комбатку юнита, умноженные на мод. морали
+                    army_sum_combat += unit["current_combat"] * self.MORALE_MODIFIER
+                    unit["morale_boost"] = 'good'  # вешаю юниту флаг, что он воодушевился в бою и увеличил свою мораль
+
+                elif 0 > unit["morale"] <= randint(-100, 0):  # если его мораль негативная и значение случайности удачно
+                    # добавляю в общий список комбатку юнита, поделенный на мод. морали
+                    army_sum_combat += int(unit["current_combat"] / self.MORALE_MODIFIER)
+                    unit["morale_boost"] = 'bad'  # вешаю юниту флаг, что он пал духом в бою и уменьшил свою мораль
+                else:  # если не произошло событий морали, то просто добавляется в сумму обычная комбатка юнита
+                    army_sum_combat += unit["current_combat"]
+                    unit["morale_boost"] = False  # Вешается флаг, что событий морали с юнитом не было
         return army_sum_combat
 
-    def count_army_advantage(self, first_cb: int, second_cb: int) -> int:
+    def count_army_advantage(self, first_army_sum_combat: int, second_army_sum_combat: int) -> None:
         """
-        this function counts advantage of army with bigger combat points expressed as a percentage
-        :param first_cb: first army combat point
-        :param second_cb: second army combat points
-        :return: advantage of the first army over the second, if advantage < 0 it means first army is weaker them second
+        Данный метод посчитывает процент преимущества первой армии на второй. Если преимущество выше 0, то оно за
+        первой армией, если ниже - за второй
+        :param first_army_sum_combat: сумма комбатки первой армии
+        :param second_army_sum_combat: сумма комбатки второй армии
+        :return: None
         """
-        advantage = int((first_cb - second_cb) / min(first_cb, second_cb) * 100 / 5)
+        advantage = int((first_army_sum_combat - second_army_sum_combat) / min(first_army_sum_combat, second_army_sum_combat) * 100 / 5)
         self.second_stage_advantage = advantage
-        return advantage
 
     def count_second_stage(self, first_army: list[dict, ...], second_army: list[dict, ...]) -> tuple:
+        """
+        Данный метод считает итоги проведения второй стадии боя
+        :param first_army: список словарей первой армии
+        :param second_army: список словарей второй армии
+        :return: списки словарей первой и второй армии по итогам боя
+        """
+        # подсчет суммы очков комбатки(cp) обеих армий
         first_army_final_cp = self.count_combat_points(first_army)
         second_army_final_cp = self.count_combat_points(second_army)
 
+        # если подсчет комбатки одной из армий выдал сумму в 0, значит одна из этих армий полностью уничтожена
+        # в первой стадии и метод возвращает результаты обоих армий после очищения ее от трупов соответствующей функцией
+        # remove_dead_units
         if first_army_final_cp == 0 or second_army_final_cp == 0:
             return remove_dead_units(first_army), remove_dead_units(second_army)
 
+        # подсчет преимущества первой армии над второй
         self.count_army_advantage(first_army_final_cp, second_army_final_cp)
 
-        if self.second_stage_advantage > 0:
+        # на основе полученного преимущества высчитываются потери первой и второй армии
+        if self.second_stage_advantage > 0:  # если преимущество на стороне первой армии
+
+            # то ее базовые потери уменьшаются на модификатор преимущества деленного на 2
             first_army_casualties = self.BASE_CASUALTIES - self.second_stage_advantage // 2
+            # а преимущество первой армии добавляется к потерям второй армии
             second_army_casualties = self.BASE_CASUALTIES + self.second_stage_advantage
-        elif self.second_stage_advantage < 0:
-            first_army_casualties = self.BASE_CASUALTIES + abs(self.second_stage_advantage)
+
+        elif self.second_stage_advantage < 0:  # если преимущество на стороне второй армии
+            # то из базовых потерь вычитается модуль преемущества(т.е. значение отрицательное) деленное на 2
             second_army_casualties = self.BASE_CASUALTIES - abs(self.second_stage_advantage // 2)
-        else:
+            # а преемущество второй армии добавляется к потерям первой армии
+            first_army_casualties = self.BASE_CASUALTIES + abs(self.second_stage_advantage)
+        else:  # если преемущество равно 0, то это фактически ничья и обе армии получаются чистые базовые потери
             first_army_casualties = self.BASE_CASUALTIES
             second_army_casualties = self.BASE_CASUALTIES
 
+        # если потери одной из армий выходят за пределы (0, 100), то значения корректируются согласно диапазону
+        # это нужно, чтобы избежать багов в отрицательными потерями или потерями, превышающими 100%
         if first_army_casualties >= 100:
             first_army_casualties = 100
         if first_army_casualties <= 0:
@@ -234,6 +259,7 @@ class SecondBattleStage:
         if second_army_casualties <= 0:
             second_army_casualties = 0
 
+        # установка флага победителя
         if first_army_final_cp > second_army_final_cp:
             self.winner = "победа первой армии"
         elif first_army_final_cp < second_army_final_cp:
@@ -241,43 +267,53 @@ class SecondBattleStage:
         else:
             self.winner = "Ничья"
 
+        # применение процента потерь к каждому отдельному юниту в обеих армиях
         for unit in first_army:
             unit["current_combat"] = int(unit["current_combat"] / 100 * (100 - first_army_casualties))
         for unit in second_army:
             unit["current_combat"] = int(unit["current_combat"] / 100 * (100 - second_army_casualties))
 
-        first_army_after_fight, first_army_graveyard = remove_dead_units(first_army)
-        second_army_after_fight, second_army_graveyard = remove_dead_units(second_army)
-
-        self.first_army_second_stage_graveyard = first_army_graveyard
-        self.second_army_second_stage_graveyard = second_army_graveyard
+        # очищение армий от трупов и создание кладбища второй стадии боя
+        first_army_after_fight, self.first_army_second_stage_graveyard = remove_dead_units(first_army)
+        second_army_after_fight, self.second_army_second_stage_graveyard = remove_dead_units(second_army)
 
         return first_army_after_fight, second_army_after_fight
 
     def control_battle_logic(self):
+        """
+        Управляющий метод второй стадии боя, вызывающий необходимые боевые и послебоевые методы
+        :return: списки обоих армий, а также и итоговые кладбища
+        """
+        # Вызов метода, подсчитывающего основные результаты второй стадии и возвращающий списки армий
         first_army_after_fight, second_army_after_fight = self.count_second_stage(self.first_army, self.second_army)
 
+        # Вызов методов, подсчитывающего итоговые кладбища по результатам первой и второй стадии битвы, списки словарей
+        # обоих кладбища складываются
         first_army_final_graveyard = remove_negative_casualties_from_graveyard(self.first_army_first_stage_graveyard +
                                                                                self.first_army_second_stage_graveyard)
         second_army_final_graveyard = remove_negative_casualties_from_graveyard(self.second_army_first_stage_graveyard +
                                                                                 self.second_army_second_stage_graveyard)
 
-        first_army_with_casualties = count_shartage_before_and_after_battle(first_army_after_fight)
-        second_army_with_casualties = count_shartage_before_and_after_battle(second_army_after_fight)
+        # итоговые списки словарей армий пройденных через функцию подсчета их потерь по итогам боя
+        self.first_army = count_shartage_before_and_after_battle(first_army_after_fight)
+        self.second_army = count_shartage_before_and_after_battle(second_army_after_fight)
 
-        self.first_army = first_army_with_casualties
-        self.second_army = second_army_with_casualties
-
-        return first_army_with_casualties, second_army_with_casualties, first_army_final_graveyard, second_army_final_graveyard
+        return self.first_army, self.second_army, first_army_final_graveyard, second_army_final_graveyard
 
 
-def remove_dead_units(unitlist: list) -> tuple[list[Any], list[Any]]:
-    new_list = []
-    graveyard_list = []
+def remove_dead_units(unitlist: list[dict, ...]) -> tuple[list[dict, ...], list[dict, ...]]:
+    """
+    Данная отдельная функция удаляет из списка основной армии погибшие юниты и создает отдельный список кладбища с ними
+    :param unitlist: армия, которую нужно проверить на трупы
+    :return: два списка со словарями, один действующая армия, другой - кладбище
+    """
+    new_list = []  # инициализация нового списка живой армии
+    graveyard_list = []  # инициализация кладбища
+
     for unit in unitlist:
-        if unit["current_combat"] > 0:
+        if unit["current_combat"] > 0:  # если комбатка юнита больше нуля, то он живой и отправляется в живую армию
             new_list.append(unit)
-        else:
+        else:  # если комбатка 0 или меньше, то он отправляется на кладбище
             graveyard_list.append(unit)
 
     return new_list, graveyard_list
@@ -321,55 +357,89 @@ def remove_negative_casualties_from_graveyard(graveyard_list: list[dict, ...]) -
     return graveyard_list
 
 
-def write_txt_file(first_list: list[dict, ...], second_list: list[dict, ...],
-                   first_grave_list: list[dict, ...], second_grave_list: list[dict, ...],
+def write_txt_file(first_army: list[dict, ...], second_army: list[dict, ...],
+                   first_army_graveyard: list[dict, ...], second_army_graveyard: list[dict, ...],
                    second_stage_obj: SecondBattleStage) -> None:
+    """
+    Данная функция записывает в текстовый файл результаты боя и вызывает метод статистики, который дозаписывает
+    в файл статистическую информацию по результатам боя
+    :param first_army: список словарей первой армии после боя
+    :param second_army: список словарей второй армии после боя
+    :param first_army_graveyard: список словарей кладбища первой армии
+    :param second_army_graveyard: список словарей кладбища второй армии
+    :param second_stage_obj: объект второй стадии боя
+    :return: None, результат это запись в файл
+    """
     with open("result.txt", mode='w', encoding="utf-8") as res:
+        # записывает кто победит по результатам сражения на основе флага победителя
         res.write(f'Бой проведен. Его результатом стала {second_stage_obj.winner}')
+        # записывает процент преемущества победителя во второй стадии боя
         res.write(f'\nПреемущество победителя во второй фазе боя - {abs(second_stage_obj.second_stage_advantage)}%\n')
 
-    write_army_statistics(first_list, first_grave_list, 1)
-    write_army_statistics(second_list, second_grave_list, 2)
+    # вызов методов статистики для первой и второй армии, магические числа 1 и 2 идут как флаги первой и второй армии
+    write_army_statistics(first_army, first_army_graveyard, 1)
+    write_army_statistics(second_army, second_army_graveyard, 2)
 
 
-def write_army_statistics(army_list: list[dict, ...], grave_list: list[dict, ...], number_of_army: int):
+def write_army_statistics(army_list: list[dict, ...], grave_list: list[dict, ...], number_of_army: int) -> None:
+    """
+    Данный метод записывает в текстовый файл статистику по результатам боя для обеих армий
+    :param army_list: список словарей армии
+    :param grave_list: список словарей кладбища
+    :param number_of_army: номер армии
+    :return: None, результат это запись в файл
+    """
+
     with open("result.txt", mode='a', encoding="utf-8") as stat:
+        # строка с названием того, чья статистика будет записана
         if number_of_army == 1:
             stat.write("\nСтатистика первой армии:")
-        else:
+        elif number_of_army == 2:
             stat.write("\nСтатистика второй армии:")
 
-        if army_list:
-            first_arm_cas = 0
+        if army_list:  # если в армии есть хотябы один юнит
+
             stat.write("\nВыжившие юниты:\n")
-            for line in army_list:
-                first_arm_cas += line["casualties"]
+            for line in army_list:  # иду юнитом по списку армии
+
+                # записываю имя юнита, его оставшуюся комбатку, а также то, сколько людей(эльфов, гномов, другое)
                 stat.write(f'{line["unit_name"]} оставшаяся комбатка: {line["current_combat"]} '
-                           f'погибло юнитов: {line["casualties"]} \n')
-        else:
+                           f'погибло людей: {line["casualties"]} \n')
+        else:  # если юнитов нет, то армия уничтожена
             stat.write("\nАрмия полностью уничтожена")
 
+        # иду по кладблищу и записываю имена погибших юнитов
         stat.write('\nПогибшие юниты:\n')
         for corpse in grave_list:
             stat.write(f'{corpse["unit_name"]}\n')
+        # если кладбище пустое, то пишу об этом
         if not grave_list:
             stat.write('Ни один юнит не уничтожен полностью')
 
+        # записываю итоговые суммарные потери по населению, по итогам битвы собранные из юнитов из кладбища и армии
         stat.write(f'\nCуммарные потери по количеству населения равны: '
-                   f'{sum(i["casualties"] for i in grave_list + army_list)}\n\n')
+                   f'{sum(i["casualties"] for i in grave_list + army_list)}\n\n')  # генератор подсчета суммы
 
+        # блок подсчета морали юнитов
         stat.write('Бафы и дебафы морали:\n')
-        for hero in army_list + grave_list:
-            try:
-                if hero["morale_boost"] == 'good':
-                    stat.write(f'{hero["unit_name"]} воодушевился и удвоил свою комбатку в бою\n')
-                elif hero["morale_boost"] == 'bad':
-                    stat.write(f'{hero["unit_name"]} пошатнулся боевым духом и струсил\n')
-            except KeyError:
+
+        morale_units = []  # инициализация списка с юнитами, прошедшими проверку морали
+
+        for unit in army_list + grave_list:  # иду по списку словарей армии и кладбища
+            if unit["morale_boost"] == 'good':  # если мораль юнита бафнулась, то делаю об этом запись
+                stat.write(f'{unit["unit_name"]} воодушевился и удвоил свою комбатку в бою\n')
+                morale_units.append(unit)  # добавляю юнита в список юнитов, прошедших проверку морали
+
+            elif unit["morale_boost"] == 'bad': # если мораль юнита дебафнулась, то делаю об этом запись
+                stat.write(f'{unit["unit_name"]} пошатнулся боевым духом и струсил\n')
+                morale_units.append(unit)  # добавляю юнита в список юнитов, прошедших проверку морали
+            elif not unit["morale_boost"]:  # Если мораль юнита = False, значит он проверок морали не прошел и запись
+                # игнорируется
                 pass
-        else:
+        # Если список юнитов с моралью пустой, значит никто себя не проявил и нужно об этом сделать запись
+        if not morale_units:
             stat.write('Никто не проявил себя особым образом')
-        stat.write('\n\n')
+        stat.write('\n\n')  # перебрасываю каретку на 2 строки, чтобы отделить статистику разных армий друг от друга
 
 
 def main_logic() -> None:
