@@ -307,16 +307,16 @@ def remove_dead_units(unitlist: list[dict, ...]) -> tuple[list[dict, ...], list[
     :param unitlist: армия, которую нужно проверить на трупы
     :return: два списка со словарями, один действующая армия, другой - кладбище
     """
-    new_list = []  # инициализация нового списка живой армии
+    new_unit_list = []  # инициализация нового списка живой армии
     graveyard_list = []  # инициализация кладбища
 
     for unit in unitlist:
         if unit["current_combat"] > 0:  # если комбатка юнита больше нуля, то он живой и отправляется в живую армию
-            new_list.append(unit)
+            new_unit_list.append(unit)
         else:  # если комбатка 0 или меньше, то он отправляется на кладбище
             graveyard_list.append(unit)
 
-    return new_list, graveyard_list
+    return new_unit_list, graveyard_list
 
 
 def count_shartage_before_and_after_battle(list_army: list[dict, ...]) -> list[dict, ...]:
@@ -430,7 +430,7 @@ def write_army_statistics(army_list: list[dict, ...], grave_list: list[dict, ...
                 stat.write(f'{unit["unit_name"]} воодушевился и удвоил свою комбатку в бою\n')
                 morale_units.append(unit)  # добавляю юнита в список юнитов, прошедших проверку морали
 
-            elif unit["morale_boost"] == 'bad': # если мораль юнита дебафнулась, то делаю об этом запись
+            elif unit["morale_boost"] == 'bad':  # если мораль юнита дебафнулась, то делаю об этом запись
                 stat.write(f'{unit["unit_name"]} пошатнулся боевым духом и струсил\n')
                 morale_units.append(unit)  # добавляю юнита в список юнитов, прошедших проверку морали
             elif not unit["morale_boost"]:  # Если мораль юнита = False, значит он проверок морали не прошел и запись
